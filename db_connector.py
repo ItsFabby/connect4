@@ -1,5 +1,6 @@
 import mysql.connector
 from mysql.connector import Error
+import pandas as pd
 
 
 class Connector:
@@ -27,7 +28,15 @@ class Connector:
         except Error as e:
             print(f"The error '{e}' occurred")
 
+    def retrieve_data(self, query):
+        try:
+            df = pd.read_sql(query, self.connection)
+            self.connection.commit()
+            return df
+        except Error as e:
+            print(f"The error '{e}' occurred")
+
 
 if __name__ == '__main__':
     db = Connector()
-    print(db.send_query('SELECT * FROM parameters LIMIT 10'))
+    print(db.retrieve_data('select * from training_data'))
