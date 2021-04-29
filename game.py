@@ -82,7 +82,7 @@ class Game:
     def is_draw(self, state):
         return not self.get_legal_moves(state)
 
-    def tree_search(self, runs, temp=1, ignore_rate=0.5, c=10, nnet=None):
+    def tree_search(self, runs, temp=1, ignore_rate=0, c=10, nnet=None):
         start_node = Node(self, -1, copy.deepcopy(self.game_state) * self.player, self.player)
         start_node.n = 1
         for i in range(runs):
@@ -100,7 +100,7 @@ class Game:
                 node.value += -value
                 node.n += 1
                 value *= -1
-        return self.calc_pi(start_node, ignore_rate, runs, temp)
+        return self.calc_pi(start_node=start_node, runs=runs, temp=temp, ignore_rate=ignore_rate)
 
     @staticmethod
     def get_to_leaf(start_node, c):
@@ -121,10 +121,14 @@ class Game:
         else:
             return current_node.rollout()
 
-    def calc_pi(self, start_node, ignore_rate, runs, temp):
+    def calc_pi(self, start_node, runs, temp, ignore_rate):
         pi = [0 for _ in range(self.columns)]
         for child in start_node.children:
-            pi[child.action] = max(0, ((child.n - ignore_rate * runs / self.columns) / ignore_rate / runs)) ** temp
+            if ignore_rate:
+                print(ignore_rate)
+                pi[child.action] = max(0, ((child.n - ignore_rate * runs / self.columns) / ignore_rate / runs)) ** temp
+            else:
+                pi[child.action] = child.n ** temp
         return pi / np.sum(pi)
 
 

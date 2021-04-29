@@ -42,7 +42,10 @@ def train_new_net(episodes, c, new_net, rollout, runs):
     print('-' * 20)
     examples = []
     for i in range(episodes):
-        new_examples = run_episode(nnet=new_net, c=c, rollout=rollout, runs=runs)
+        if rollout:
+            new_examples = run_episode(c=c, runs=runs)
+        else:
+            new_examples = run_episode(nnet=new_net, c=c, runs=runs)
         for ex in new_examples:
             examples.append(ex)
             examples.append(mirror_example(ex))
@@ -52,14 +55,11 @@ def train_new_net(episodes, c, new_net, rollout, runs):
     new_net.train(examples)
 
 
-def run_episode(nnet, c, rollout, runs):
+def run_episode(c, runs, nnet=None):
     examples = []
     game = Game()
     while True:
-        if rollout:
-            pi = game.tree_search(runs=runs, c=c)
-        else:
-            pi = game.tree_search(runs=runs, nnet=nnet, c=c)
+        pi = game.tree_search(runs=runs, nnet=nnet, c=c)
         state = copy.deepcopy(game.game_state) * game.player
         examples.append([np.array(state), [pi]])
         # action = random.choices(range(len(pi)), weights=pi)[0]
@@ -104,7 +104,18 @@ def duel(nnet1, nnet2, matches=100):
     return score
 
 
+def gen_data(c, runs, nnet=None):
+    examples = run_episode(nnet=nnet, c=c, runs=runs)
+    for ex in copy.copy(examples):
+        examples.append(mirror_example(ex))
+    db = Connector()
+    print('inserting')
+    db.insert_examples(examples)
+
+
 if __name__ == '__main__':
     # duel(NNet(load_data=False), NNet(load_data=True), matches=100)
+    # while True:
+    #     train(episodes=1, runs=50, matches=18, insert=False, threshold=10)
     while True:
-        train(episodes=50, runs=50, matches=18, insert=True, threshold=0)
+        gen_data(c=10, runs=200)
