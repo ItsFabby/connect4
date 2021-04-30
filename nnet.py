@@ -13,10 +13,12 @@ class NNet:
         self.epochs = epochs
         self.learning_rate = learning_rate
         self.batch_size = batch_size
+        self.tb_callback = keras.callbacks.TensorBoard(log_dir='logs/', histogram_freq=1)
 
         inputs = Input(shape=(columns, rows, 1))
         x = Conv2D(filters=64, kernel_size=(4, 4), padding='same')(inputs)
         x = BatchNormalization(axis=3)(x)
+        x = Activation('relu')(x)
 
         x = self.res_net(inputs=x, filters=64, kernel_size=(4, 4))
         x = self.res_net(inputs=x, filters=64, kernel_size=(4, 4))
@@ -24,11 +26,13 @@ class NNet:
 
         policy = Conv2D(filters=64, kernel_size=(4, 4), padding='valid')(x)
         policy = BatchNormalization(axis=3)(policy)
+        policy = Activation('relu')(policy)
         policy = Flatten()(policy)
         policy = Dense(columns, activation='softmax', name='policy')(policy)
 
         value = Conv2D(filters=64, kernel_size=(4, 4), padding='valid')(x)
         value = BatchNormalization(axis=3)(value)
+        value = Activation('relu')(value)
         value = Flatten()(value)
         value = Dense(1, activation='sigmoid', name='value')(value)
 
@@ -42,18 +46,18 @@ class NNet:
         if load_data:
             try:
                 self.model.load_weights('data/').expect_partial()
-            except OSError:
+            except ValueError:
                 print('could not load data')
 
     @staticmethod
     def res_net(inputs, filters, kernel_size):
         x_shortcut = inputs
 
-        x = Conv2D(filters=filters, kernel_size=kernel_size, padding='same', strides=(1, 1))(inputs)
+        x = Conv2D(filters=filters, kernel_size=kernel_size, padding='same')(inputs)
         x = BatchNormalization(axis=3)(x)
         x = Activation('relu')(x)
 
-        x = Conv2D(filters=filters, kernel_size=kernel_size, padding='same', strides=(1, 1))(x)
+        x = Conv2D(filters=filters, kernel_size=kernel_size, padding='same')(x)
         x = BatchNormalization(axis=3)(x)
 
         x = Add()([x, x_shortcut])
@@ -64,7 +68,7 @@ class NNet:
         x_train = np.array([example[0] for example in examples])
         y_train = (np.array([example[1][0] for example in examples]), np.array([example[1][1] for example in examples]))
         self.model.fit(x_train, {'policy': y_train[0], 'value': y_train[1]},
-                       epochs=self.epochs, batch_size=self.batch_size)
+                       epochs=self.epochs, batch_size=self.batch_size, callbacks=[self.tb_callback], shuffle=True)
         if save_data:
             self.model.save_weights('data/')
 
@@ -76,7 +80,7 @@ class NNet:
         state_copy = copy.deepcopy(state) * player
         prediction = self.model.predict(np.array([np.array(state_copy)]))
         policy = prediction[0][0]
-        value = prediction[1][0]
+        value = prediction[1][0][0]
         for move in range(len(policy)):
             if not self.is_legal(state=state_copy, move=move):
                 policy[move] = 0

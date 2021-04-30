@@ -1,4 +1,4 @@
-import copy
+# import copy
 
 import mysql.connector
 from mysql.connector import Error
@@ -39,33 +39,35 @@ class Connector:
         except Error as e:
             print(f"The error '{e}' occurred")
 
-    def insert_examples(self, examples):
+    def insert_examples(self, examples, count_factor=1.0, table='training_data'):
         for ex in examples:
             ex = self.example_to_dict(ex)
-            data = self.retrieve_data(f"select * from training_data where state = '{ex['state']}'")
+            data = self.retrieve_data(f"SELECT * FROM {table} WHERE state = '{ex['state']}'")
             if not data.empty:
                 old_dict = data.to_dict('records')[0]
-                ex = self.merge_examples(old_dict, ex)
+                ex = self.merge_examples(old_dict, ex, count_factor=count_factor)
                 self.send_query(
-                    f"UPDATE training_data SET state = '{ex['state']}', val = {ex['val']},"
+                    f"UPDATE {table} SET state = '{ex['state']}', val = {ex['val']},"
                     f"p0 = {ex['p0']}, p1 = {ex['p1']}, p2 = {ex['p2']}, p3 = {ex['p3']},"
                     f"p4 = {ex['p4']}, p5 = {ex['p5']}, p6 = {ex['p6']},"
                     f"counter = {ex['counter']}, last_edited = CURRENT_TIMESTAMP WHERE state = '{ex['state']}';"
                 )
             else:
                 self.send_query(
-                    f"INSERT INTO training_data (state, val, p0, p1, p2, p3, p4, p5, p6, counter)"
+                    f"INSERT INTO {table} (state, val, p0, p1, p2, p3, p4, p5, p6, counter)"
                     f" VALUES ('{ex['state']}', {ex['val']}, {ex['p0']}, {ex['p1']}, {ex['p2']}, {ex['p3']},"
                     f"{ex['p4']}, {ex['p5']}, {ex['p6']}, 1);"
                 )
 
     @staticmethod
-    def merge_examples(old_dict, new_dict):
+    def merge_examples(old_dict, new_dict, count_factor=1.0):
         counter = old_dict['counter']
+        scaled_counter = counter * count_factor
         merged_dict = {'state': old_dict['state'], 'counter': counter + 1}
         for column in ['val'] + [f'p{i}' for i in range(7)]:
             merged_dict.update(
-                {column: (1 / (counter + 1)) * new_dict[column] + (counter / (counter + 1)) * old_dict[column]})
+                {column: (1 / (scaled_counter + 1)) * new_dict[column] + (scaled_counter / (scaled_counter + 1)) *
+                         old_dict[column]})
         return merged_dict
 
     def df_to_examples(self, df):
@@ -95,4 +97,4 @@ class Connector:
 
 if __name__ == '__main__':
     db = Connector()
-    print(db.df_to_examples(db.retrieve_data('select * from training_data limit 10')))
+    print(db.df_to_examples(db.retrieve_data('select * from training_data limit 3')))
