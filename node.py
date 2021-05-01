@@ -88,13 +88,13 @@ class Node:
             return self.children[np.random.choice(np.flatnonzero(puct_scores == np.max(puct_scores)))]
 
     def puct(self, child, c_puct):
-        Q = 1 - child.nnet_value
-        U = c_puct * self.policy[child.action] * math.sqrt(self.n) / (1 + child.n)
+        q = 1 - child.nnet_value
+        u = c_puct * self.policy[child.action] * math.sqrt(self.n) / (1 + child.n)
         # print(f'val: {child.nnet_value}')
         # print(self.policy)
         # print(child.action)
         # print(Q + U)
-        return Q + U
+        return q + u
 
     @staticmethod
     def upper_confidence_bound(value, parent_n, n, c, epsilon=0.00000001):

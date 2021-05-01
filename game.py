@@ -5,11 +5,10 @@ from nnet import NNet
 import os
 from node import Node
 import copy
-import time
 import random
+import time
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-root = tk.Tk()
 
 
 class Game:
@@ -19,13 +18,65 @@ class Game:
         self.game_state = np.zeros((columns, rows))
         self.win_con = win_con
         self.player = 1
-        if gui:
-            self.board = Board(root, self, rows, columns)
+        self.gui = gui
+        if self.gui:
+            self.root = tk.Tk()
+            self.board = Board(self.root, self, rows, columns)
             self.board.pack(side="top", fill="both", expand="true", padx=4, pady=4)
+            self.root.update()
 
     def make_move(self, column):
         self.game_state = self.move(self.game_state, column, self.player)
         self.player *= -1
+        if self.gui:
+            print('updating root')
+            self.board.redraw()
+            self.root.update()
+
+    def run(self, method1, method2, structure_1='structure1', structure_2='structure1', print_out=True,
+            runs1=200, runs2=200, c1=3, c2=3, pause=1):
+        while self.winner(self.game_state) == 'none':
+            if self.player == 1:
+                self.make_move(self.decide_move(method=method1, runs=runs1, c=c1, structure=structure_1,
+                                                print_out=print_out))
+            else:
+                self.make_move(self.decide_move(method=method2, runs=runs2, c=c2, structure=structure_2,
+                                                print_out=print_out))
+            time.sleep(pause)
+        if self.gui:
+            self.root.mainloop()
+
+    def decide_move(self, method, c=3, runs=200, structure='structure1', print_out=True):
+        if method == 'input':
+            while True:
+                try:
+                    move = int(input('input column number between 1 and 7: ')) - 1
+                    if move in self.get_legal_moves(self.game_state):
+                        return move
+                except ValueError:
+                    pass
+                print('input not valid')
+
+        if method == 'mcts':
+            pi = self.tree_search(runs=runs, c=c)
+            if print_out:
+                print(f'pi: {pi}')
+            return np.argmax(pi)
+
+        if method == 'nnet':
+            pi = self.tree_search_nnet(nnet=NNet(structure=structure), c_puct=c, runs=runs, print_out=print_out)
+            if print_out:
+                print(f'pi: {pi}')
+            return np.argmax(pi)
+
+        if method == 'simple_nnet':
+            pi, val = NNet().prediction(self.game_state, player=self.player)
+            if print_out:
+                print(f'pi: {pi}')
+            return np.argmax(pi)
+
+        else:
+            print('method not valid')
 
     def move(self, state, column, player):
         state_copy = copy.deepcopy(state)
@@ -103,7 +154,7 @@ class Game:
         return self.calc_pi(start_node=start_node, runs=runs, temp=temp, ignore_rate=ignore_rate)
 
     def tree_search_nnet(self, runs, nnet, c_puct=4, temp=1,
-                         ignore_rate=0, randomness=False, x_noise=0.):
+                         ignore_rate=0, randomness=False, x_noise=0., decision='policy', print_out=False):
         start_node = Node(self, -1, copy.deepcopy(self.game_state) * self.player, self.player)
         start_node.n = 1
         for i in range(runs):
@@ -123,10 +174,17 @@ class Game:
             for node in reversed(path):
                 value = 1 - value
                 node.update_value(value)
-        # print(f'start pol: {start_node.policy}')
-        # print(f'start val: {[child.nnet_value for child in start_node.children]}')
-        # print(1 - start_node.select_child_nnet(0).nnet_value)
-        return self.calc_pi(start_node=start_node, runs=runs, temp=temp, ignore_rate=ignore_rate)
+        if print_out:
+            # print(f'start pol: {start_node.policy}')
+            # print(f'start val: {[child.nnet_value for child in start_node.children]}')
+            print(f'estimated chance to win: {1 - start_node.select_child_nnet(0).nnet_value}')
+        if decision == 'policy':
+            return self.calc_pi(start_node=start_node, runs=runs, temp=temp, ignore_rate=ignore_rate)
+        else:
+            values = [1 for _ in range(7)]
+            for child in start_node.children:
+                values[child.action] = child.nnet_value
+            return (1 - np.array(values)) / np.sum(1 - np.array(values))
 
     @staticmethod
     def get_to_leaf_nnet(start_node, c_puct, randomness):
@@ -160,54 +218,6 @@ class Game:
         return pi / np.sum(pi)
 
 
-def test_run_nnet(nnet1, nnet2, gui=True, randomness=False):
-    game = Game(gui=gui)
-    game.board.redraw()
-    root.update()
-    while game.winner(game.game_state) == 'none':
-        if game.player == 1:
-            policy, val = nnet1.prediction(state=game.game_state, player=game.player)
-            print(f'value p1:{val}')
-            print(f'policy p1:{policy}')
-        else:
-            policy, val = nnet2.prediction(state=game.game_state, player=game.player)
-            print(f'value p2:{val}')
-            print(f'policy p2:{policy}')
-        if randomness:
-            game.make_move((random.choices(range(len(policy)), weights=policy)[0]))
-        else:
-            game.make_move(np.argmax(policy))
-        time.sleep(1)
-        game.board.redraw()
-        root.update()
-    root.mainloop()
-
-
-def test_run_treesearch_nnet(nnet1, nnet2, runs=50, gui=True, c_puct=4, randomness=False):
-    game = Game(gui=gui)
-    game.board.redraw()
-    root.update()
-    while game.winner(game.game_state) == 'none':
-        if game.player == 1:
-            pi = game.tree_search(runs=1000, c=20)
-            # print(f'pi p1:{pi}')
-        else:
-            # pi = game.tree_search_nnet(runs=runs, nnet=nnet2, c_puct=c_puct)
-            pi = game.tree_search_nnet(runs=100, nnet=nnet1, c_puct=c_puct)
-            # print(f'pi p2:{pi}')
-        if randomness:
-            game.make_move((random.choices(range(len(pi)), weights=pi)[0]))
-        else:
-            game.make_move(np.argmax(pi))
-        # time.sleep(1)
-        game.board.redraw()
-        root.update()
-    root.mainloop()
-
-
 if __name__ == '__main__':
-    # test_run_nnet(NNet(load_data=True), NNet(load_data=True))
-    test_run_treesearch_nnet(NNet(load_data=True), NNet(load_data=True))
-    # game = Game()
-    # pi = game.tree_search_nnet(10, NNet(load_data=True))
-    # print(pi)
+    game = Game(gui=True)
+    game.run(method1='input', method2='nnet', pause=0)
