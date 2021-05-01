@@ -2,6 +2,7 @@ import random
 import numpy as np
 import copy
 import math
+import scipy.stats
 
 
 class Node:
@@ -14,6 +15,22 @@ class Node:
         self.player = player  # who makes the next move
         self.action = action  # last move that created this node
 
+        self.policy = None
+        self.nnet_value = 0.5
+
+    def fetch_prediction(self, nnet, x_noise=0.):
+        self.policy, self.nnet_value = nnet.prediction(self.state, player=1)
+        if not x_noise:
+            return
+        d = scipy.stats.dirichlet.rvs([1.0 for _ in range(7)])[0]
+        self.policy = (1 - x_noise) * self.policy + 1 * d
+
+        # print(self.policy)
+
+    def update_value(self, value):
+        self.nnet_value = self.n / (self.n + 1) * self.nnet_value + 1 / (self.n + 1) * value
+        self.n += 1
+
     def is_terminal(self):
         return self.game.has_won(self.state, player=-1) or self.game.is_draw(self.state)
 
@@ -25,7 +42,7 @@ class Node:
 
     def create_child(self, action):
         self.children.append(Node(self.game, action,
-                                  state=self.game.move(self.state, action, 1).copy() * -1,
+                                  state=self.game.move(self.state, action, 1) * -1,
                                   player=self.player * -1))
 
     def expand(self):
@@ -62,6 +79,22 @@ class Node:
         ubc_max = np.max(ubcs)
         max_children = [child for i, child in enumerate(self.children) if (ubcs[i] == ubc_max)]
         return random.choice(max_children)
+
+    def select_child_nnet(self, c_puct, randomness=False):
+        puct_scores = np.array([self.puct(child, c_puct) for child in self.children])
+        if randomness:
+            return self.children[random.choices(range(len(puct_scores)), weights=puct_scores)[0]]
+        else:
+            return self.children[np.random.choice(np.flatnonzero(puct_scores == np.max(puct_scores)))]
+
+    def puct(self, child, c_puct):
+        Q = 1 - child.nnet_value
+        U = c_puct * self.policy[child.action] * math.sqrt(self.n) / (1 + child.n)
+        # print(f'val: {child.nnet_value}')
+        # print(self.policy)
+        # print(child.action)
+        # print(Q + U)
+        return Q + U
 
     @staticmethod
     def upper_confidence_bound(value, parent_n, n, c, epsilon=0.00000001):

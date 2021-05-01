@@ -5,9 +5,37 @@ import random
 import sys
 import copy
 from db_connector import Connector
+import time
 
 
-def train(episodes, rollout=True, runs=100, matches=100, insert=False, threshold=0):
+def train(matches=50, threshold=0, learning_rate=0.00001, epochs=1, batch_size=128, data_limit=600000):
+    new_net = NNet(learning_rate=learning_rate, epochs=epochs, batch_size=batch_size)
+    old_net = NNet()
+    db = Connector()
+    examples = db.df_to_examples(db.retrieve_data(
+        query=f"SELECT * FROM training_data ORDER BY counter DESC LIMIT {data_limit};"
+    ))
+    new_net.train(examples)
+    score = duel(nnet1=new_net, nnet2=old_net, matches=matches)
+    evaluate_score(new_net, score, threshold)
+
+
+def gen_data(c, runs, nnet=None, count_factor=1.0):
+    start = time.time()
+    examples = run_episode(nnet=nnet, c=c, runs=runs)
+    for ex in copy.copy(examples):
+        examples.append(mirror_example(ex))
+    db = Connector()
+    print(f'generating data took {time.time() - start}s')
+    start = time.time()
+    db.insert_examples(examples, count_factor=count_factor, table='training_data')
+    print(f'inserting data took {time.time() - start}s')
+    start = time.time()
+    db.insert_examples(examples, count_factor=count_factor, table='training_data1')
+    print(f'inserting data took {time.time() - start}s')
+
+
+def train_stream(episodes, rollout=True, runs=100, matches=100, insert=False, threshold=0):
     learning_rate, c, epochs, batch_size = sample_parameters()
     new_net = NNet(learning_rate=learning_rate, epochs=epochs, batch_size=batch_size)
     old_net = NNet()
@@ -16,11 +44,7 @@ def train(episodes, rollout=True, runs=100, matches=100, insert=False, threshold
     score = duel(nnet1=new_net, nnet2=old_net, matches=matches)
 
     print(f'parameters: c={c}, learning rate ={learning_rate}, epochs={epochs}, batch size={batch_size}')
-    if score > threshold:
-        new_net.model.save_weights('data/')
-        print(f'new model accepted with score: {score}')
-    else:
-        print(f'new model rejected with score: {score}')
+    evaluate_score(new_net, score, threshold)
 
     if insert:
         database = Connector()
@@ -42,7 +66,10 @@ def train_new_net(episodes, c, new_net, rollout, runs):
     print('-' * 20)
     examples = []
     for i in range(episodes):
-        new_examples = run_episode(nnet=new_net, c=c, rollout=rollout, runs=runs)
+        if rollout:
+            new_examples = run_episode(c=c, runs=runs)
+        else:
+            new_examples = run_episode(nnet=new_net, c=c, runs=runs)
         for ex in new_examples:
             examples.append(ex)
             examples.append(mirror_example(ex))
@@ -52,14 +79,15 @@ def train_new_net(episodes, c, new_net, rollout, runs):
     new_net.train(examples)
 
 
-def run_episode(nnet, c, rollout, runs):
+def run_episode(c, runs, nnet=None):
     examples = []
     game = Game()
     while True:
-        if rollout:
-            pi = game.tree_search(runs=runs, c=c)
+        if nnet:
+            pi = game.tree_search_nnet(runs=runs, nnet=nnet, c_puct=c,
+                                       randomness=False, x_noise=0.5)
         else:
-            pi = game.tree_search(runs=runs, nnet=nnet, c=c)
+            pi = game.tree_search(runs=runs, c=c)
         state = copy.deepcopy(game.game_state) * game.player
         examples.append([np.array(state), [pi]])
         # action = random.choices(range(len(pi)), weights=pi)[0]
@@ -104,7 +132,18 @@ def duel(nnet1, nnet2, matches=100):
     return score
 
 
+def evaluate_score(nnet, score, threshold):
+    if score > threshold:
+        nnet.model.save_weights('data/')
+        print(f'new model accepted with score: {score}')
+    else:
+        print(f'new model rejected with score: {score}')
+
+
 if __name__ == '__main__':
     # duel(NNet(load_data=False), NNet(load_data=True), matches=100)
+    # while True:
+    #     train_stream(episodes=1, runs=50, matches=18, insert=False, threshold=10)
     while True:
-        train(episodes=50, runs=50, matches=18, insert=True, threshold=0)
+        gen_data(c=4, runs=50, nnet=NNet(), count_factor=0.5)
+        # train(learning_rate=0.0003, epochs=1, batch_size=128)
