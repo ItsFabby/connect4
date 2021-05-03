@@ -29,7 +29,6 @@ class Game:
         self.game_state = self.move(self.game_state, column, self.player)
         self.player *= -1
         if self.gui:
-            print('updating root')
             self.board.redraw()
             self.root.update()
 
@@ -59,21 +58,21 @@ class Game:
 
         if method == 'mcts':
             pi = self.tree_search(runs=runs, c=c)
-            if print_out:
-                print(f'pi: {pi}')
+            # if print_out:
+            #   print(f'pi: {pi}')
             return np.argmax(pi)
 
         if method == 'nnet':
             pi = self.tree_search_nnet(nnet=NNet(structure=structure), c_puct=c, runs=runs, print_out=print_out)
-            if print_out:
-                print(f'pi: {pi}')
+            # if print_out:
+            #     print(f'pi: {pi}')
             return np.argmax(pi)
 
         if method == 'simple_nnet':
-            pi, val = NNet().prediction(self.game_state, player=self.player)
-            if print_out:
-                print(f'pi: {pi}')
-            return np.argmax(pi)
+            policy, val = NNet().prediction(self.game_state, player=self.player)
+            # if print_out:
+            #     print(f'policy: {policy}')
+            return np.argmax(policy)
 
         else:
             print('method not valid')
@@ -220,4 +219,4 @@ class Game:
 
 if __name__ == '__main__':
     game = Game(gui=True)
-    game.run(method1='input', method2='nnet', pause=0)
+    game.run(method1='input', method2='nnet', pause=0, runs1=50, runs2=10)

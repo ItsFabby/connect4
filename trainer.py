@@ -135,11 +135,11 @@ def match(nnet1, nnet2, c_puct=4, runs=50, x_noise=0.5):
             return 0
 
 
-def duel(nnet1, nnet2, matches=20, runs=50, c_puct=2):
+def duel(nnet1, nnet2, matches=20, runs=50, c_puct=2, x_noise=0.5):
     score = 0
     for i in range(int(matches / 2)):
-        score += match(nnet1, nnet2, runs=runs, c_puct=c_puct)
-        score += match(nnet2, nnet1, runs=runs, c_puct=c_puct) * -1
+        score += match(nnet1, nnet2, runs=runs, c_puct=c_puct, x_noise=x_noise)
+        score += match(nnet2, nnet1, runs=runs, c_puct=c_puct, x_noise=x_noise) * -1
         sys.stdout.write(f'\rmatch: {(i + 1) * 2}/{matches}, score: {score}')
         sys.stdout.flush()
     print('')
@@ -155,13 +155,11 @@ def evaluate_score(nnet, score, structure, threshold):
 
 
 if __name__ == '__main__':
-    # duel(NNet(load_data=True, structure='structure1'), NNet(load_data=True, structure='structure0'), matches=20)
+    duel(NNet(load_data=True, structure='structure1'), NNet(load_data=True, structure='structure0'), matches=100,
+         runs=2, x_noise=0.1)
     # while True:
     #     train_stream(episodes=1, runs=50, matches=18, insert=False, threshold=10)
     while True:
-        gen_data(c=2, runs=50, nnet=NNet(), count_factor=0.5)
-        # train(learning_rate=0.00001, epochs=2, batch_size=256, table='training_data1', structure='structure1')
-        # train(learning_rate=0.000003, epochs=1, batch_size=256, table='training_data', structure='structure1')
-        # train(learning_rate=0.000003, epochs=1, batch_size=512, table='training_data', structure='structure1')
-        # train(learning_rate=0.00001, epochs=1, batch_size=1024, table='training_data', structure='structure1')
-        # train(learning_rate=0.000003, epochs=1, batch_size=1024, table='training_data', structure='structure1')
+        # gen_data(c=2, runs=50, nnet=NNet(), count_factor=0.5)
+        train(learning_rate=0.0000001, epochs=1, batch_size=256, table='training_data', structure='structure1')
+        train(learning_rate=0.0000001, epochs=1, batch_size=512, table='training_data', structure='structure1')
