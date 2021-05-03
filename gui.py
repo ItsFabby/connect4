@@ -2,16 +2,18 @@ import tkinter as tk
 
 
 class Board(tk.Frame):
-    def __init__(self, parent, game, rows, columns, size=32):
+    def __init__(self, game, rows, columns, size=64):
         self.rows = rows
         self.columns = columns
         self.size = size
         self.game = game
+        self.root = tk.Tk()
 
         canvas_width = columns * size
         canvas_height = rows * size
 
-        tk.Frame.__init__(self, parent)
+        tk.Frame.__init__(self, self.root)
+        self.pack(side="top", fill="both", expand="true", padx=4, pady=4)
         self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0,
                                 width=canvas_width, height=canvas_height, background="darkgrey")
         self.canvas.pack(side="top", fill="both", expand=True, padx=2, pady=2)
@@ -30,7 +32,7 @@ class Board(tk.Frame):
         for row in range(self.rows):
             for col in range(self.columns):
                 x1 = (col * self.size)
-                y1 = ((self.rows-row-1) * self.size)
+                y1 = ((self.rows - row - 1) * self.size)
                 x2 = x1 + self.size
                 y2 = y1 + self.size
                 if self.game.game_state[col][row] == 0:

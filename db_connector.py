@@ -1,5 +1,3 @@
-# import copy
-
 import mysql.connector
 from mysql.connector import Error
 import numpy as np
@@ -65,9 +63,8 @@ class Connector:
         scaled_counter = counter * count_factor
         merged_dict = {'state': old_dict['state'], 'counter': counter + 1}
         for column in ['val'] + [f'p{i}' for i in range(7)]:
-            merged_dict.update(
-                {column: (1 / (scaled_counter + 1)) * new_dict[column] + (scaled_counter / (scaled_counter + 1)) *
-                         old_dict[column]})
+            merged_dict.update({column: (1 / (scaled_counter + 1))
+                                * new_dict[column] + (scaled_counter / (scaled_counter + 1)) * old_dict[column]})
         return merged_dict
 
     def df_to_examples(self, df):
