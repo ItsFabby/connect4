@@ -4,7 +4,6 @@ from tensorflow import keras
 from tensorflow.keras.layers import Dense, Flatten, Conv2D, Input, BatchNormalization, Activation, Add
 import copy
 import os
-# from sklearn.model_selection import KFold
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -15,7 +14,6 @@ class NNet:
         self.epochs = epochs
         self.learning_rate = learning_rate
         self.batch_size = batch_size
-        # self.tb_callback = keras.callbacks.TensorBoard(log_dir='logs/', histogram_freq=1)
 
         inputs = Input(shape=(7, 6, 1))
         x = Conv2D(filters=64, kernel_size=(4, 4), padding='same')(inputs)
@@ -49,9 +47,9 @@ class NNet:
         )
         if load_data:
             try:
-                self.model.load_weights(f'{structure}/').expect_partial()
+                self.model.load_weights(f'weights/{self.structure}/').expect_partial()
             except ValueError:
-                print('could not load data')
+                print('No saved weights found')
 
     @staticmethod
     def res_net(inputs, filters, kernel_size):
@@ -71,20 +69,11 @@ class NNet:
     def train(self, examples, save_data=False):
         x_train = np.array([example[0] for example in examples])
         y_train = (np.array([example[1][0] for example in examples]), np.array([example[1][1] for example in examples]))
-        # kf = KFold(n_splits=10, shuffle=True)
-        # train_index, test_index = [i for i in kf.split(x)][0]
-        # print(train_index)
-        # x_train = x[train_index]
-        # y_train = y[train_index]
-        # x_test = x[test_index]
-        # y_test = y[test_index]
 
-        self.model.fit(x_train, {'policy': y_train[0], 'value': y_train[1]},
-                       epochs=self.epochs, batch_size=self.batch_size, shuffle=True)  # , callbacks=[self.tb_callback]
-        # evaluation = self.model.evaluate(x_test, y_test)
-        # print(evaluation)
+        self.model.fit(x=x_train, y={'policy': y_train[0], 'value': y_train[1]},
+                       epochs=self.epochs, batch_size=self.batch_size, shuffle=True)
         if save_data:
-            self.model.save_weights('data/')
+            self.model.save_weights(f'weights/{self.structure}/')
 
     @staticmethod
     def is_legal(state, move, rows=6):

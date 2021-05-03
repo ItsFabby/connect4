@@ -148,7 +148,7 @@ def duel(nnet1, nnet2, matches=20, runs=50, c_puct=2, x_noise=0.5):
 
 def evaluate_score(nnet, score, structure, threshold):
     if score > threshold:
-        nnet.model.save_weights(f'{structure}/')
+        nnet.model.save_weights(f'weights/{structure}/')
         print(f'new model accepted with score: {score}')
     else:
         print(f'new model rejected with score: {score}')
