@@ -5,31 +5,30 @@ import copy
 import random
 import time
 
-from gui import Board
 from nnet import NNet
-
-# import os
-# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
 class Game:
-    def __init__(self, rows=6, columns=7, win_con=4, gui=False):
+    def __init__(self, rows=6, columns=7, win_con=4):
         self.rows = rows
         self.columns = columns
         self.game_state = np.zeros((columns, rows))
         self.win_con = win_con
         self.player = 1
-        self.gui = gui
-        if self.gui:
-            self.board = Board(self, rows, columns)
-            self.board.root.update()
+        self.finished = False
+
+    def restart(self):
+        self.game_state = np.zeros((self.columns, self.rows))
+        self.finished = False
 
     def make_move(self, column):
+        if column not in self.get_legal_moves(self.game_state):
+            print('illegal move')
+            return
         self.game_state = self.move(self.game_state, column, self.player)
+        if self.has_won(self.game_state, self.player):
+            self.finished = True
         self.player *= -1
-        if self.gui:
-            self.board.redraw()
-            self.board.root.update()
 
     def run(self, method1, method2, structure_1='structure1', structure_2='structure1', print_out=True,
             runs1=200, runs2=200, c1=3, c2=3, pause=1):
@@ -41,10 +40,8 @@ class Game:
                 self.make_move(
                     self.decide_move(method=method2, runs=runs2, c=c2, structure=structure_2, print_out=print_out))
             time.sleep(pause)
-        if self.gui:
-            self.board.root.mainloop()
 
-    def decide_move(self, method, c_puct=3, c=10, runs=200, structure='structure1', print_out=True):
+    def decide_move(self, method, c=3, runs=200, structure='structure1', print_out=True):
         if method == 'input':
             while True:
                 try:
@@ -60,7 +57,7 @@ class Game:
             return np.argmax(pi)
 
         if method == 'nnet':
-            pi = self.tree_search_nnet(nnet=NNet(structure=structure), c_puct=c_puct, runs=runs, print_out=print_out)
+            pi = self.tree_search_nnet(nnet=NNet(structure=structure), c_puct=c, runs=runs, print_out=print_out)
             return np.argmax(pi)
 
         if method == 'simple_nnet':
@@ -296,4 +293,7 @@ class Node:
 
 
 if __name__ == '__main__':
-    Game(gui=True).run(method1='input', method2='nnet', pause=0, runs1=50, runs2=10)
+    pass
+    # thread_run = threading.Thread(target=game1.run(method1='input', method2='nnet', pause=0, runs1=50, runs2=10))
+    # thread_run.start()
+    # game1.run(method1='input', method2='nnet', pause=0, runs1=50, runs2=10), game1.board.mainloop()
