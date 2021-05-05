@@ -7,6 +7,8 @@ import time
 
 from nnet import NNet
 
+# change
+
 
 class Game:
     def __init__(self, rows=6, columns=7, win_con=4):
