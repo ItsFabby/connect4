@@ -24,7 +24,7 @@ def train(table=c.DEFAULT_TRAINING_TABLE, structure=c.DEFAULT_STRUCTURE, matches
     evaluate_score(new_net, score, structure, threshold)
 
 
-def gen_data(iterations=c.DEFAULT_ITERATIONS, nnet=None, count_factor=1.0):
+def gen_data(iterations=c.DEFAULT_ITERATIONS, nnet=None, table=c.DEFAULT_TRAINING_TABLE, count_factor=1.0):
     start = time.time()
     examples = run_episode(nnet=nnet, iterations=iterations)
     for ex in copy.copy(examples):
@@ -33,8 +33,7 @@ def gen_data(iterations=c.DEFAULT_ITERATIONS, nnet=None, count_factor=1.0):
 
     start = time.time()
     db = Connector()
-    db.insert_examples(examples, count_factor=count_factor, table='training_data')
-    db.insert_examples(examples, count_factor=count_factor, table='training_data1')
+    db.insert_examples(examples, count_factor=count_factor, table=table)
     print(f'inserting data took {time.time() - start}s')
 
 
@@ -82,18 +81,18 @@ def train_new_net(episodes, new_net, rollout, iterations):
     new_net.train(examples)
 
 
-def run_episode(iterations, nnet=None):
+def run_episode(iterations, nnet=None, x_noise=c.DEFAULT_TRAINING_NOISE):
     examples = []
     game = Game()
     while True:
         if nnet:
-            pi = game.tree_search_nnet(iterations=iterations, nnet=nnet, randomness=False, x_noise=0.5)
+            pi = game.tree_search_nnet(iterations=iterations, nnet=nnet, randomness=False, x_noise=x_noise)
         else:
             pi = game.tree_search(iterations=iterations)
         state = copy.deepcopy(game.game_state) * game.player
-        examples.append([np.array(state), [pi]])
-        action = np.argmax(pi)
-        game.make_move(action)
+        examples.append([state, [pi]])
+        game.make_move(np.argmax(pi))
+
         if game.winner(game.game_state) != 'none':
             winner = game.winner(game.game_state)
             for i, example in enumerate(examples):
@@ -106,6 +105,31 @@ def mirror_example(example):
     ex[0] = np.flip(ex[0], axis=0)
     ex[1][0] = np.flip(ex[1][0])
     return ex
+
+
+def match_series(nnet1, nnet2, matches=20, iterations=c.DEFAULT_ITERATIONS, x_noise=c.DEFAULT_TRAINING_NOISE):
+    score = 0
+    for i in range(int(matches / 2)):
+        score += match(nnet1, nnet2, iterations=iterations, x_noise=x_noise)
+        score += match(nnet2, nnet1, iterations=iterations, x_noise=x_noise) * -1
+        sys.stdout.write(f'\rmatch: {(i + 1) * 2}/{matches}, score: {score}')
+        sys.stdout.flush()
+    print('')
+    return score
+
+
+def match(nnet1, nnet2, iterations=c.DEFAULT_ITERATIONS, x_noise=c.DEFAULT_TRAINING_NOISE):
+    game = Game()
+    while True:
+        if game.player == 1:
+            pi = game.tree_search_nnet(iterations=iterations, nnet=nnet1, x_noise=x_noise)
+        else:
+            pi = game.tree_search_nnet(iterations=iterations, nnet=nnet2, x_noise=x_noise)
+        game.make_move(random.choices(range(len(pi)), weights=pi)[0])
+        if game.has_won(game.game_state, player=game.player * -1):
+            return game.player * -1
+        elif game.is_draw(game.game_state):
+            return 0
 
 
 def fast_match(nnet1, nnet2):
@@ -122,31 +146,6 @@ def fast_match(nnet1, nnet2):
             return 0
 
 
-def match(nnet1, nnet2, iterations=c.DEFAULT_ITERATIONS, x_noise=0.5):
-    game = Game()
-    while True:
-        if game.player == 1:
-            pi = game.tree_search_nnet(iterations=iterations, nnet=nnet1, x_noise=x_noise)
-        else:
-            pi = game.tree_search_nnet(iterations=iterations, nnet=nnet2, x_noise=x_noise)
-        game.make_move(random.choices(range(len(pi)), weights=pi)[0])
-        if game.has_won(game.game_state, player=game.player * -1):
-            return game.player * -1
-        elif game.is_draw(game.game_state):
-            return 0
-
-
-def match_series(nnet1, nnet2, matches=20, iterations=c.DEFAULT_ITERATIONS, x_noise=0.5):
-    score = 0
-    for i in range(int(matches / 2)):
-        score += match(nnet1, nnet2, iterations=iterations, x_noise=x_noise)
-        score += match(nnet2, nnet1, iterations=iterations, x_noise=x_noise) * -1
-        sys.stdout.write(f'\rmatch: {(i + 1) * 2}/{matches}, score: {score}')
-        sys.stdout.flush()
-    print('')
-    return score
-
-
 def evaluate_score(nnet, score, structure, threshold):
     if score > threshold:
         nnet.model.save_weights(f'connect4/weights/{structure}/')
@@ -156,9 +155,14 @@ def evaluate_score(nnet, score, structure, threshold):
 
 
 if __name__ == '__main__':
+    pass
+    # example operations:
+
     # while True:
-    #     train_stream(episodes=1, runs=50, matches=18, insert=False, threshold=10)
-    while True:
-        # gen_data(c=2, runs=50, nnet=NNet(), count_factor=0.5)
-        train(learning_rate=0.0000001, epochs=1, batch_size=256)
-        train(learning_rate=0.0000001, epochs=1, batch_size=512)
+    #     train_stream()
+
+    # while True:
+    #     gen_data()
+
+    # while True:
+    #     train()

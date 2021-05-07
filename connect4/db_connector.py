@@ -96,5 +96,4 @@ class Connector:
 
 
 if __name__ == '__main__':
-    db = Connector()
-    print(db.df_to_examples(db.retrieve_data('select * from training_data limit 3')))
+    pass

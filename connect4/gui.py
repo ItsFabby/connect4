@@ -6,11 +6,12 @@ from .game import Game
 from . import constants as c
 
 
-class Board(tk.Frame):
+class GUI(tk.Frame):
     def __init__(self):
         super().__init__()
         self.game = Game()
 
+        """GUI elements"""
         self.header = tk.Label(self)
         self.header.grid(row=0, column=0)
 
@@ -35,25 +36,25 @@ class Board(tk.Frame):
         self.player_selection.grid(row=5, column=0)
 
         self.player1 = tk.StringVar(self)
-        self.player1.set('human')
+        self.player1.set('Human')
         self.player1_label = tk.Label(self.player_selection, text='Player 1 (red): ')
         self.player1_label.grid(row=0, column=0)
-        self.player1_box = tk.OptionMenu(self.player_selection, self.player1, *['human', 'neural network'],
+        self.player1_box = tk.OptionMenu(self.player_selection, self.player1, *['Human', 'Neural Network'],
                                          command=self.option_trigger)
         self.player1_box.grid(row=0, column=1)
 
         self.player2 = tk.StringVar(self)
-        self.player2.set('neural network')
+        self.player2.set('Neural Network')
         self.player2_label = tk.Label(self.player_selection, text='Player 2 (blue): ')
         self.player2_label.grid(row=0, column=3)
-        self.player2_box = tk.OptionMenu(self.player_selection, self.player2, *['human', 'neural network'],
+        self.player2_box = tk.OptionMenu(self.player_selection, self.player2, *['Human', 'Neural Network'],
                                          command=self.option_trigger)
         self.player2_box.grid(row=0, column=4)
 
         self.pack()
 
+        """Starting event loop"""
         self.field.bind('<Button-1>', self.move_event)
-
         self.check_ai()
         self.redraw()
         self.mainloop()
@@ -86,9 +87,9 @@ class Board(tk.Frame):
 
     def is_nnet(self, player):
         if player == 1:
-            return self.player1.get() == 'neural network'
+            return self.player1.get() == 'Neural Network'
         else:
-            return self.player2.get() == 'neural network'
+            return self.player2.get() == 'Neural Network'
 
     def check_ai(self):
         self.update_header()

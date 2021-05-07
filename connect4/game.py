@@ -19,31 +19,20 @@ class Game:
         self.game_state = np.zeros((c.COLUMNS, c.ROWS))
         self.finished = False
 
-    def make_move(self, column):
-        if column not in self.get_legal_moves(self.game_state):
-            print('illegal move')
-            return
-        self.game_state = self.move(self.game_state, column, self.player)
-        if self.has_won(self.game_state, self.player):
-            self.finished = True
-        self.player *= -1
-
-    def run(self, method1, method2, structure_1='structure1', structure_2='structure1', print_out=True,
-            iterations1=c.DEFAULT_ITERATIONS, iterations2=c.DEFAULT_ITERATIONS, pause=1):
+    def run(self, method1='input', method2='nnet', structure_1=c.DEFAULT_STRUCTURE, structure_2=c.DEFAULT_STRUCTURE,
+            iterations1=c.DEFAULT_ITERATIONS, iterations2=c.DEFAULT_ITERATIONS, print_out=True, pause=1):
         while self.winner(self.game_state) == 'none':
             if self.player == 1:
                 self.make_move(
-                    self.decide_move(method=method1, iterations=iterations1,
-                                     structure=structure_1, print_out=print_out)
+                    self.decide_move(method=method1, iterations=iterations1, structure=structure_1, print_out=print_out)
                 )
             else:
                 self.make_move(
-                    self.decide_move(method=method2, iterations=iterations2,
-                                     structure=structure_2, print_out=print_out)
+                    self.decide_move(method=method2, iterations=iterations2, structure=structure_2, print_out=print_out)
                 )
             time.sleep(pause)
 
-    def decide_move(self, method, iterations, structure='structure1', print_out=True):
+    def decide_move(self, method, iterations=c.DEFAULT_ITERATIONS, structure=c.DEFAULT_STRUCTURE, print_out=True):
         if method == 'input':
             while True:
                 try:
@@ -70,13 +59,14 @@ class Game:
         else:
             print('method not valid')
 
-    @staticmethod
-    def get_legal_moves(state):
-        moves = []
-        for column in range(c.COLUMNS):
-            if state[column][c.ROWS - 1] == 0:
-                moves.append(column)
-        return moves
+    def make_move(self, column):
+        if column not in self.get_legal_moves(self.game_state):
+            print('illegal move')
+            return
+        self.game_state = self.move(self.game_state, column, self.player)
+        if self.has_won(self.game_state, self.player):
+            self.finished = True
+        self.player *= -1
 
     @staticmethod
     def move(state, column, player):
@@ -86,6 +76,14 @@ class Game:
                 state_copy[column][i] = player
                 break
         return state_copy
+
+    @staticmethod
+    def get_legal_moves(state):
+        moves = []
+        for column in range(c.COLUMNS):
+            if state[column][c.ROWS - 1] == 0:
+                moves.append(column)
+        return moves
 
     @staticmethod
     def on_board(column, row):
@@ -132,7 +130,7 @@ class Game:
         start_node = Node(self, -1, copy.deepcopy(self.game_state) * self.player, self.player)
         start_node.n = 1
         for i in range(iterations):
-            current_node, path = self.get_to_leaf(start_node)
+            current_node, path = self.get_to_leaf_mcts(start_node)
             if current_node.is_terminal():
                 value = -1
             elif current_node.n == 0:
@@ -147,6 +145,18 @@ class Game:
                 node.n += 1
                 value *= -1
         return self.calc_pi(start_node=start_node, temp=temp)
+
+    @staticmethod
+    def get_to_leaf_mcts(start_node):
+        current_node = start_node
+        path = [current_node]
+        if not current_node.is_leaf():
+            current_node = current_node.select_child_ubc(randomness=True)
+            path.append(current_node)
+        while not current_node.is_leaf():
+            current_node = current_node.select_child_ubc(randomness=False)
+            path.append(current_node)
+        return current_node, path
 
     def tree_search_nnet(self, iterations, nnet, temp=c.DEFAULT_TEMP, randomness=False, x_noise=0., print_out=False):
         start_node = Node(self, -1, copy.deepcopy(self.game_state) * self.player, self.player)
@@ -182,18 +192,6 @@ class Game:
         return current_node, path
 
     @staticmethod
-    def get_to_leaf(start_node):
-        current_node = start_node
-        path = [current_node]
-        if not current_node.is_leaf():
-            current_node = current_node.select_child_ubc(randomness=True)
-            path.append(current_node)
-        while not current_node.is_leaf():
-            current_node = current_node.select_child_ubc(randomness=False)
-            path.append(current_node)
-        return current_node, path
-
-    @staticmethod
     def calc_pi(start_node, temp):
         pi = np.zeros(c.COLUMNS)
         for child in start_node.children:
@@ -213,18 +211,6 @@ class Node:
 
         self.policy = None
         self.nnet_value = 0.5
-
-    def fetch_prediction(self, nnet, x_noise=0.):
-        self.policy, self.nnet_value = nnet.prediction(self.state, player=1)
-        if not x_noise:
-            return
-
-        d = scipy.stats.dirichlet.rvs([1.0 for _ in range(c.COLUMNS)])[0]
-        self.policy = (1 - x_noise) * self.policy + 1 * d
-
-    def update_value(self, value):
-        self.nnet_value = self.n / (self.n + 1) * self.nnet_value + 1 / (self.n + 1) * value
-        self.n += 1
 
     def is_terminal(self):
         return self.game.has_won(self.state, player=-1) or self.game.is_draw(self.state)
@@ -264,6 +250,11 @@ class Node:
         else:
             return self.children[np.random.choice(np.flatnonzero(puct_scores == np.max(puct_scores)))]
 
+    def puct(self, child):
+        q = 1 - child.nnet_value
+        u = c.C_PUCT * self.policy[child.action] * math.sqrt(self.n) / (1 + child.n)
+        return q + u
+
     def select_child_ubc(self, randomness=False):
         ubc_scores = np.array([self.upper_confidence_bound(child) for child in self.children])
         if randomness:
@@ -271,17 +262,21 @@ class Node:
         else:
             return self.children[np.random.choice(np.flatnonzero(ubc_scores == np.max(ubc_scores)))]
 
-    def puct(self, child):
-        q = 1 - child.nnet_value
-        u = c.C_PUCT * self.policy[child.action] * math.sqrt(self.n) / (1 + child.n)
-        return q + u
-
     def upper_confidence_bound(self, child, epsilon=0.00000001):
         return child.value + c.C_UBC * math.sqrt(math.log(self.n + epsilon) / (child.n + epsilon))
+
+    def fetch_prediction(self, nnet, x_noise=0.):
+        self.policy, self.nnet_value = nnet.prediction(self.state, player=1)
+        if not x_noise:
+            return
+
+        d = scipy.stats.dirichlet.rvs([1.0 for _ in range(c.COLUMNS)])[0]
+        self.policy = (1 - x_noise) * self.policy + 1 * d
+
+    def update_value(self, value):
+        self.nnet_value = self.n / (self.n + 1) * self.nnet_value + 1 / (self.n + 1) * value
+        self.n += 1
 
 
 if __name__ == '__main__':
     pass
-    # thread_run = threading.Thread(target=game1.run(method1='input', method2='nnet', pause=0, runs1=50, runs2=10))
-    # thread_run.start()
-    # game1.run(method1='input', method2='nnet', pause=0, runs1=50, runs2=10), game1.board.mainloop()

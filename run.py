@@ -1,4 +1,4 @@
-from connect4.gui import Board
+from connect4.gui import GUI
 
 if __name__ == '__main__':
-    Board()
+    GUI()

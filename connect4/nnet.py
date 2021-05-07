@@ -31,8 +31,7 @@ class NNet:
         policy = BatchNormalization(axis=3)(policy)
         policy = Activation('relu')(policy)
         policy = Flatten()(policy)
-        if structure == 'structure1':
-            policy = Dense(256, activation='relu')(policy)
+        policy = Dense(256, activation='relu')(policy)
         policy = Dense(c.COLUMNS, activation='softmax', name='policy')(policy)
 
         value = Conv2D(filters=64, kernel_size=(4, 4), padding='valid')(x)
@@ -78,10 +77,6 @@ class NNet:
         if save_data:
             self.model.save_weights(f'connect4/weights/{self.structure}/')
 
-    @staticmethod
-    def is_legal(state, move):
-        return state[move][c.ROWS - 1] == 0
-
     def prediction(self, state, player=1):
         state_copy = copy.deepcopy(state) * player
         prediction = self.model.predict(np.array([np.array(state_copy)]))
@@ -93,3 +88,7 @@ class NNet:
             else:
                 policy[move] = policy[move] + 0.00001
         return policy / np.sum(policy), value
+
+    @staticmethod
+    def is_legal(state, move):
+        return state[move][c.ROWS - 1] == 0
