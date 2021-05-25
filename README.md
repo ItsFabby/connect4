@@ -29,7 +29,17 @@ Training a network:
 
 Make sure to change `model_name` when training a new network (either by giving a keyword argument or by changing the
 default in `core/constants.py`), otherwise the old weights will be overwritten! \
-Feel free to change the structure of the network in `core/neural_network.py`.
+Feel free to change the structure of the network in `core/nnet.py`.
+
+## Network Architecture
+
+The network consists of an initial convolutional layer with the shape of the board (6, 7), followed by three residual
+blocks, each consisting of two convolutional layers. Following this, the network splits into a policy and a value head.
+
+The policy head consists of a convolutional layer followed by a dense layer leading to an output layer with one output
+for each column and softmax activation, covering all possible moves. The value head consists of a convolutional layer
+leading to a single output with sigmoid activation. All convolutional layers have a kernel size of (4, 4) with 64
+filters and batch normalisation is applied between each one.
 
 ## License
 
