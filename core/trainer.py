@@ -1,34 +1,38 @@
 import numpy as np
 import random
 import sys
+import os
 import copy
 import time
 
-from . import constants as c
-from .db_connector import Connector
-from .game import Game
-from .nnet import NNet
+import constants as c
+from db_connector import Connector
+from game import Game
+from nnet import NNet
+
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def train(table=c.DEFAULT_TRAINING_TABLE, structure=c.DEFAULT_STRUCTURE, matches=10,
-          threshold=c.DEFAULT_THRESHOLD, learning_rate=c.DEFAULT_LEARNING_RATE, epochs=c.DEFAULT_EPOCHS,
-          batch_size=c.DEFAULT_BATCH_SIZE, data_limit=600000):
-    new_net = NNet(learning_rate=learning_rate, epochs=epochs, batch_size=batch_size, structure=structure)
-    old_net = NNet(structure=structure)
+def train(table: str = c.DEFAULT_TRAINING_TABLE, model_name: str = c.DEFAULT_MODEL_NAME, matches: int = 10,
+          threshold: int = c.DEFAULT_THRESHOLD, learning_rate: float = c.DEFAULT_LEARNING_RATE,
+          epochs: int = c.DEFAULT_EPOCHS, batch_size: int = c.DEFAULT_BATCH_SIZE, data_limit: int = 600000) -> None:
+    new_net = NNet(learning_rate=learning_rate, epochs=epochs, batch_size=batch_size, model_name=model_name)
+    old_net = NNet(model_name=model_name)
     db = Connector()
     examples = db.df_to_examples(db.retrieve_data(
         query=f"SELECT * FROM {table} ORDER BY counter DESC LIMIT {data_limit};"
     ))
     new_net.train(examples)
-    score = match_series(nnet1=new_net, nnet2=old_net, matches=matches)
-    evaluate_score(new_net, score, structure, threshold)
+    score = _match_series(nnet1=new_net, nnet2=old_net, matches=matches)
+    _evaluate_score(new_net, score, model_name, threshold)
 
 
-def gen_data(iterations=c.DEFAULT_ITERATIONS, nnet=None, table=c.DEFAULT_TRAINING_TABLE, count_factor=1.0):
+def gen_examples(iterations: int = c.DEFAULT_ITERATIONS, nnet: NNet = None, table: str = c.DEFAULT_TRAINING_TABLE,
+                 count_factor: float = 1.0) -> None:
     start = time.time()
-    examples = run_episode(nnet=nnet, iterations=iterations)
+    examples = _run_episode(nnet=nnet, iterations=iterations)
     for ex in copy.copy(examples):
-        examples.append(mirror_example(ex))
+        examples.append(_mirror_example(ex))
     print(f'generating data took {time.time() - start}s')
 
     start = time.time()
@@ -37,51 +41,45 @@ def gen_data(iterations=c.DEFAULT_ITERATIONS, nnet=None, table=c.DEFAULT_TRAININ
     print(f'inserting data took {time.time() - start}s')
 
 
-def train_stream(episodes=50, structure=c.DEFAULT_STRUCTURE, rollout=True, iterations=c.DEFAULT_ITERATIONS,
-                 matches=10, insert=False, threshold=c.DEFAULT_THRESHOLD):
-    learning_rate, epochs, batch_size = sample_parameters()
+def train_stream(episodes: int = 50, model_name: str = c.DEFAULT_MODEL_NAME, rollout: bool = True,
+                 iterations: int = c.DEFAULT_ITERATIONS, matches: int = 10,
+                 threshold: int = c.DEFAULT_THRESHOLD) -> None:
+    learning_rate, epochs, batch_size = _sample_parameters()
     new_net = NNet(learning_rate=learning_rate, epochs=epochs, batch_size=batch_size)
     old_net = NNet()
 
-    train_new_net(episodes=episodes, new_net=new_net, rollout=rollout, iterations=iterations)
-    score = match_series(nnet1=new_net, nnet2=old_net, matches=matches)
+    _train_new_net(episodes=episodes, new_net=new_net, rollout=rollout, iterations=iterations)
+    score = _match_series(nnet1=new_net, nnet2=old_net, matches=matches)
 
     print(f'parameters: learning rate ={learning_rate}, epochs={epochs}, batch size={batch_size}')
-    evaluate_score(new_net, score, structure, threshold)
-
-    if insert:
-        database = Connector()
-        database.send_query(
-            f'INSERT INTO parameters (score, matches, learning_rate, epochs, batch_size)'
-            f'VALUES ({score}, {matches}, {learning_rate}, {epochs}, {batch_size});',
-            print_out=False)
+    _evaluate_score(new_net, score, model_name, threshold)
 
 
-def sample_parameters():
+def _sample_parameters() -> tuple:
     learning_rate = 10 ** random.uniform(-3, -2)
     epochs = random.randint(1, 2)
     batch_size = int(10 ** random.uniform(0.5, 1.5))
     return learning_rate, epochs, batch_size
 
 
-def train_new_net(episodes, new_net, rollout, iterations):
+def _train_new_net(episodes: int, new_net: NNet, rollout: bool, iterations: int) -> None:
     print('-' * 20)
     examples = []
     for i in range(episodes):
         if rollout:
-            new_examples = run_episode(iterations=iterations)
+            new_examples = _run_episode(iterations=iterations)
         else:
-            new_examples = run_episode(nnet=new_net, iterations=iterations)
+            new_examples = _run_episode(nnet=new_net, iterations=iterations)
         for ex in new_examples:
             examples.append(ex)
-            examples.append(mirror_example(ex))
+            examples.append(_mirror_example(ex))
         sys.stdout.write(f'\repisode: {i + 1}/{episodes}')
         sys.stdout.flush()
     print('')
     new_net.train(examples)
 
 
-def run_episode(iterations, nnet=None, x_noise=c.DEFAULT_TRAINING_NOISE):
+def _run_episode(iterations: int, nnet: NNet = None, x_noise: float = c.DEFAULT_TRAINING_NOISE) -> list:
     examples = []
     game = Game()
     while True:
@@ -93,32 +91,34 @@ def run_episode(iterations, nnet=None, x_noise=c.DEFAULT_TRAINING_NOISE):
         examples.append([state, [pi]])
         game.make_move(np.argmax(pi))
 
-        if game.winner(game.game_state) != 'none':
+        if game.winner(game.game_state) is not None:
             winner = game.winner(game.game_state)
             for i, example in enumerate(examples):
                 example[1].append((winner * ((-1) ** i) + 1) / 2)
             return examples
 
 
-def mirror_example(example):
+def _mirror_example(example: list) -> list:
     ex = copy.deepcopy(example)
     ex[0] = np.flip(ex[0], axis=0)
     ex[1][0] = np.flip(ex[1][0])
     return ex
 
 
-def match_series(nnet1, nnet2, matches=20, iterations=c.DEFAULT_ITERATIONS, x_noise=c.DEFAULT_TRAINING_NOISE):
+def _match_series(nnet1: NNet, nnet2: NNet, matches: int = 20, iterations: int = c.DEFAULT_ITERATIONS,
+                  x_noise: float = c.DEFAULT_TRAINING_NOISE) -> int:
     score = 0
     for i in range(int(matches / 2)):
-        score += match(nnet1, nnet2, iterations=iterations, x_noise=x_noise)
-        score += match(nnet2, nnet1, iterations=iterations, x_noise=x_noise) * -1
+        score += _match(nnet1, nnet2, iterations=iterations, x_noise=x_noise)
+        score += _match(nnet2, nnet1, iterations=iterations, x_noise=x_noise) * -1
         sys.stdout.write(f'\rmatch: {(i + 1) * 2}/{matches}, score: {score}')
         sys.stdout.flush()
     print('')
     return score
 
 
-def match(nnet1, nnet2, iterations=c.DEFAULT_ITERATIONS, x_noise=c.DEFAULT_TRAINING_NOISE):
+def _match(nnet1: NNet, nnet2: NNet, iterations: int = c.DEFAULT_ITERATIONS,
+           x_noise: float = c.DEFAULT_TRAINING_NOISE) -> int:
     game = Game()
     while True:
         if game.player == 1:
@@ -132,7 +132,7 @@ def match(nnet1, nnet2, iterations=c.DEFAULT_ITERATIONS, x_noise=c.DEFAULT_TRAIN
             return 0
 
 
-def fast_match(nnet1, nnet2):
+def _fast_match(nnet1: NNet, nnet2: NNet) -> int:
     game = Game()
     while True:
         if game.player == 1:
@@ -146,9 +146,9 @@ def fast_match(nnet1, nnet2):
             return 0
 
 
-def evaluate_score(nnet, score, structure, threshold):
+def _evaluate_score(nnet: NNet, score: int, model_name: str, threshold: int) -> None:
     if score > threshold:
-        nnet.model.save_weights(f'connect4/weights/{structure}/')
+        nnet.model.save_weights(f'{parent_dir}\\weights\\{model_name}\\')
         print(f'new model accepted with score: {score}')
     else:
         print(f'new model rejected with score: {score}')
@@ -162,7 +162,7 @@ if __name__ == '__main__':
     #     train_stream()
 
     # while True:
-    #     gen_data()
+    #     gen_examples()
 
     # while True:
     #     train()
