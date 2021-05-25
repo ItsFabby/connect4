@@ -14,7 +14,7 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class NNet:
     def __init__(self, epochs: int = c.DEFAULT_EPOCHS, learning_rate: float = c.DEFAULT_LEARNING_RATE,
-                 batch_size: int = c.DEFAULT_BATCH_SIZE, model_name: str = c.DEFAULT_STRUCTURE, load_data: bool = True):
+                 batch_size: int = c.DEFAULT_BATCH_SIZE, model_name: str = c.DEFAULT_MODEL_NAME, load_data: bool = True):
 
         self.model = self._get_model(learning_rate, load_data, model_name)
         self.model_name = model_name

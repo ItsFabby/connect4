@@ -13,9 +13,9 @@ from nnet import NNet
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def train(table=c.DEFAULT_TRAINING_TABLE, model_name=c.DEFAULT_STRUCTURE, matches=10,
-          threshold=c.DEFAULT_THRESHOLD, learning_rate=c.DEFAULT_LEARNING_RATE, epochs=c.DEFAULT_EPOCHS,
-          batch_size=c.DEFAULT_BATCH_SIZE, data_limit=600000):
+def train(table: str = c.DEFAULT_TRAINING_TABLE, model_name: str = c.DEFAULT_MODEL_NAME, matches: int = 10,
+          threshold: int = c.DEFAULT_THRESHOLD, learning_rate: float = c.DEFAULT_LEARNING_RATE,
+          epochs: int = c.DEFAULT_EPOCHS, batch_size: int = c.DEFAULT_BATCH_SIZE, data_limit: int = 600000) -> None:
     new_net = NNet(learning_rate=learning_rate, epochs=epochs, batch_size=batch_size, model_name=model_name)
     old_net = NNet(model_name=model_name)
     db = Connector()
@@ -27,7 +27,8 @@ def train(table=c.DEFAULT_TRAINING_TABLE, model_name=c.DEFAULT_STRUCTURE, matche
     _evaluate_score(new_net, score, model_name, threshold)
 
 
-def gen_examples(iterations=c.DEFAULT_ITERATIONS, nnet=None, table=c.DEFAULT_TRAINING_TABLE, count_factor=1.0):
+def gen_examples(iterations: int = c.DEFAULT_ITERATIONS, nnet: NNet = None, table: str = c.DEFAULT_TRAINING_TABLE,
+                 count_factor: float = 1.0) -> None:
     start = time.time()
     examples = _run_episode(nnet=nnet, iterations=iterations)
     for ex in copy.copy(examples):
@@ -40,8 +41,9 @@ def gen_examples(iterations=c.DEFAULT_ITERATIONS, nnet=None, table=c.DEFAULT_TRA
     print(f'inserting data took {time.time() - start}s')
 
 
-def train_stream(episodes=50, model_name=c.DEFAULT_STRUCTURE, rollout=True, iterations=c.DEFAULT_ITERATIONS,
-                 matches=10, threshold=c.DEFAULT_THRESHOLD):
+def train_stream(episodes: int = 50, model_name: str = c.DEFAULT_MODEL_NAME, rollout: bool = True,
+                 iterations: int = c.DEFAULT_ITERATIONS, matches: int = 10,
+                 threshold: int = c.DEFAULT_THRESHOLD) -> None:
     learning_rate, epochs, batch_size = _sample_parameters()
     new_net = NNet(learning_rate=learning_rate, epochs=epochs, batch_size=batch_size)
     old_net = NNet()
@@ -53,14 +55,14 @@ def train_stream(episodes=50, model_name=c.DEFAULT_STRUCTURE, rollout=True, iter
     _evaluate_score(new_net, score, model_name, threshold)
 
 
-def _sample_parameters():
+def _sample_parameters() -> tuple:
     learning_rate = 10 ** random.uniform(-3, -2)
     epochs = random.randint(1, 2)
     batch_size = int(10 ** random.uniform(0.5, 1.5))
     return learning_rate, epochs, batch_size
 
 
-def _train_new_net(episodes, new_net, rollout, iterations):
+def _train_new_net(episodes: int, new_net: NNet, rollout: bool, iterations: int) -> None:
     print('-' * 20)
     examples = []
     for i in range(episodes):
@@ -77,7 +79,7 @@ def _train_new_net(episodes, new_net, rollout, iterations):
     new_net.train(examples)
 
 
-def _run_episode(iterations, nnet=None, x_noise=c.DEFAULT_TRAINING_NOISE):
+def _run_episode(iterations: int, nnet: NNet = None, x_noise: float = c.DEFAULT_TRAINING_NOISE) -> list:
     examples = []
     game = Game()
     while True:
@@ -96,14 +98,15 @@ def _run_episode(iterations, nnet=None, x_noise=c.DEFAULT_TRAINING_NOISE):
             return examples
 
 
-def _mirror_example(example):
+def _mirror_example(example: list) -> list:
     ex = copy.deepcopy(example)
     ex[0] = np.flip(ex[0], axis=0)
     ex[1][0] = np.flip(ex[1][0])
     return ex
 
 
-def _match_series(nnet1, nnet2, matches=20, iterations=c.DEFAULT_ITERATIONS, x_noise=c.DEFAULT_TRAINING_NOISE):
+def _match_series(nnet1: NNet, nnet2: NNet, matches: int = 20, iterations: int = c.DEFAULT_ITERATIONS,
+                  x_noise: float = c.DEFAULT_TRAINING_NOISE) -> int:
     score = 0
     for i in range(int(matches / 2)):
         score += _match(nnet1, nnet2, iterations=iterations, x_noise=x_noise)
@@ -114,7 +117,8 @@ def _match_series(nnet1, nnet2, matches=20, iterations=c.DEFAULT_ITERATIONS, x_n
     return score
 
 
-def _match(nnet1, nnet2, iterations=c.DEFAULT_ITERATIONS, x_noise=c.DEFAULT_TRAINING_NOISE):
+def _match(nnet1: NNet, nnet2: NNet, iterations: int = c.DEFAULT_ITERATIONS,
+           x_noise: float = c.DEFAULT_TRAINING_NOISE) -> int:
     game = Game()
     while True:
         if game.player == 1:
@@ -128,7 +132,7 @@ def _match(nnet1, nnet2, iterations=c.DEFAULT_ITERATIONS, x_noise=c.DEFAULT_TRAI
             return 0
 
 
-def _fast_match(nnet1, nnet2):
+def _fast_match(nnet1: NNet, nnet2: NNet) -> int:
     game = Game()
     while True:
         if game.player == 1:
@@ -142,7 +146,7 @@ def _fast_match(nnet1, nnet2):
             return 0
 
 
-def _evaluate_score(nnet, score, model_name, threshold):
+def _evaluate_score(nnet: NNet, score: int, model_name: str, threshold: int) -> None:
     if score > threshold:
         nnet.model.save_weights(f'{parent_dir}\\weights\\{model_name}\\')
         print(f'new model accepted with score: {score}')

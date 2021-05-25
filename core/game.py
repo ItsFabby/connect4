@@ -3,7 +3,6 @@ import math
 import scipy.stats
 import copy
 import random
-import time
 from typing import Union, List, Tuple, Optional
 
 from nnet import NNet
@@ -11,33 +10,35 @@ import constants as c
 
 
 class Game:
+    """
+    Implements Connect 4.
+    
+    Attrs:
+        game_state: 2-axis numpy array that saves the current state of the game. 1 is player 1, -1 is player 2, 0 is an 
+        empty square. Index ordering is (column, row).
+        
+        player: Player whose turn is next.
+        
+        finished: True if the game is won or drawn.
+    """
+
     def __init__(self):
         self.game_state = np.zeros((c.COLUMNS, c.ROWS))
         self.player = 1
         self.finished = False
 
-    def restart(self) -> None:
-        self.game_state = np.zeros((c.COLUMNS, c.ROWS))
-        self.finished = False
-
-    def run(self, method1: str = 'input', method2: str = 'nnet',
-            structure_1: str = c.DEFAULT_STRUCTURE, structure_2: str = c.DEFAULT_STRUCTURE,
-            iterations1: int = c.DEFAULT_ITERATIONS, iterations2: int = c.DEFAULT_ITERATIONS,
-            print_out: bool = True, pause: int = 1) -> None:
-
-        while self.winner(self.game_state) == 'none':
-            if self.player == 1:
-                self.make_move(
-                    self.decide_move(method=method1, iterations=iterations1, structure=structure_1, print_out=print_out)
-                )
-            else:
-                self.make_move(
-                    self.decide_move(method=method2, iterations=iterations2, structure=structure_2, print_out=print_out)
-                )
-            time.sleep(pause)
-
-    def decide_move(self, method: str, iterations: int, structure: str = c.DEFAULT_STRUCTURE,
+    def decide_move(self, method: str, iterations: int, model_name: str = c.DEFAULT_MODEL_NAME,
                     print_out: bool = True) -> Union[int, np.ndarray]:
+        """
+        Outputs a move for the current game state determined by a specified method.
+        
+        :param method: 'nnet': neural network with tree search, 'simple_nnet': neural network without tree search,
+            'mcts': Monte Carlo tree search, 'input': input via terminal.
+        :param iterations: Number of iterations in tree searches
+        :param model_name: Structure name of the neural network
+        :param print_out: Prints out extra information by the neural network
+        :return: Determined best move
+        """
         if method == 'input':
             while True:
                 try:
@@ -53,7 +54,7 @@ class Game:
             return np.argmax(pi)
 
         if method == 'nnet':
-            pi = self.tree_search_nnet(nnet=NNet(structure=structure), iterations=iterations,
+            pi = self.tree_search_nnet(nnet=NNet(model_name=model_name), iterations=iterations,
                                        print_out=print_out)
             return np.argmax(pi)
 
@@ -65,6 +66,11 @@ class Game:
             print('method not valid')
 
     def make_move(self, column: int) -> None:
+        """
+        Applies a move to the current game state.
+        
+        :param column: Column where to make the move. 
+        """
         if column not in self.get_legal_moves(self.game_state):
             print('illegal move')
             return
@@ -75,6 +81,14 @@ class Game:
 
     @staticmethod
     def move(state: np.ndarray, column: int, player: int) -> np.ndarray:
+        """
+        Applies a move to a given state and returns the new state.
+        
+        :param state: State to apply the move to
+        :param column: Column where to make the move
+        :param player: Player who makes the move
+        :return: New state
+        """
         state_copy = copy.deepcopy(state)
         for i in range(c.ROWS):
             if state_copy[column][i] == 0:
@@ -84,18 +98,26 @@ class Game:
 
     @staticmethod
     def get_legal_moves(state: np.ndarray) -> List[int]:
+        """
+        Allowed moves for a given state.
+        
+        :param state: Given state
+        :return: List of allowed columns
+        """
         moves = []
         for column in range(c.COLUMNS):
             if state[column][c.ROWS - 1] == 0:
                 moves.append(column)
         return moves
 
-    @staticmethod
-    def on_board(column: int, row: int) -> bool:
-        return c.COLUMNS > column >= 0 and c.ROWS > row >= 0
-
     @classmethod
-    def winner(cls, state: np.ndarray) -> Union[int, str]:
+    def winner(cls, state: np.ndarray) -> Union[int, str, None]:
+        """
+        Returns the winner of the current state if their is one, or if it's draw
+
+        :param state: Given state
+        :return: 1 for player 1, -1 for player 2, 0 for a draw, None for a not finished game
+        """
         if not cls.get_legal_moves(state):
             return 0
         for col in range(c.COLUMNS):
@@ -104,17 +126,28 @@ class Game:
                     for direction in np.array([[0, 1], [1, 0], [1, -1], [1, 1]]):
                         count = 0
                         current_field = np.array([col, row])
-                        while cls.on_board(current_field[0], current_field[1]) \
+                        while cls._on_board(current_field[0], current_field[1]) \
                                 and state[current_field[0]][current_field[1]] == state[col][row]:
                             count += 1
                             current_field = current_field + direction
 
                         if count >= c.WIN_CONDITION:
                             return state[col][row]
-        return 'none'
+        return None
+
+    @staticmethod
+    def _on_board(column: int, row: int) -> bool:
+        return c.COLUMNS > column >= 0 and c.ROWS > row >= 0
 
     @classmethod
     def has_won(cls, state: np.ndarray, player: int = 1) -> bool:
+        """
+        Determines if a given player has won. Faster than winner().
+
+        :param state: Given state
+        :param player: Given player 1 or -1
+        :return: True if player has won.
+        """
         for col in range(c.COLUMNS):
             directions = np.array([[0, 1]])
             if col <= (c.COLUMNS - c.WIN_CONDITION):
@@ -124,7 +157,7 @@ class Game:
                     for direction in directions:
                         count = 0
                         current_field = np.array([col, row])
-                        while cls.on_board(current_field[0], current_field[1]) \
+                        while cls._on_board(current_field[0], current_field[1]) \
                                 and state[current_field[0]][current_field[1]] == player:
                             count += 1
                             current_field = current_field + direction
@@ -134,9 +167,22 @@ class Game:
 
     @classmethod
     def is_draw(cls, state: np.ndarray) -> bool:
+        """
+        Determines if given state is a draw
+
+        :param state:
+        :return: True if game is a draw (no more possible moves).
+        """
         return not cls.get_legal_moves(state)
 
     def tree_search(self, iterations: int, temp: float = c.DEFAULT_TEMP) -> np.array:
+        """
+        Standard Monte Carlo tree search without a neural network.
+
+        :param iterations: Iterations of the tree search.
+        :param temp: Element wise exponent on the policy vector.
+        :return: Policy vector giving probabilities for each move.
+        """
         start_node = Node(None, copy.deepcopy(self.game_state) * self.player, self.player)
         start_node.n = 1
         for i in range(iterations):
@@ -170,7 +216,17 @@ class Game:
 
     def tree_search_nnet(self, iterations: int, nnet: 'NNet', temp: float = c.DEFAULT_TEMP,
                          randomness: bool = False, x_noise: float = 0., print_out: bool = False) -> np.array:
+        """
+        Modified Monte Carlo tree search, using the neural network.
 
+        :param iterations: Number of iterations of the tree search.
+        :param nnet: neural network
+        :param temp: Element wise exponent on the policy vector.
+        :param randomness: If True, child nodes are randomly chosen with weighted probability
+        :param x_noise: Between 0 and 1. Noise applied to the policy vector from the neural network.
+        :param print_out: Prints out extra information from the neural network.
+        :return: Policy vector giving probabilities for each move.
+        """
         start_node = Node(None, copy.deepcopy(self.game_state) * self.player, self.player)
         start_node.n = 1
         for i in range(iterations):
