@@ -9,21 +9,21 @@ from typing import Any, Tuple
 import constants as c
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-parent_dict = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class NNet:
     def __init__(self, epochs: int = c.DEFAULT_EPOCHS, learning_rate: float = c.DEFAULT_LEARNING_RATE,
-                 batch_size: int = c.DEFAULT_BATCH_SIZE, structure: str = c.DEFAULT_STRUCTURE, load_data: bool = True):
+                 batch_size: int = c.DEFAULT_BATCH_SIZE, model_name: str = c.DEFAULT_STRUCTURE, load_data: bool = True):
 
-        self.model = self._get_model(learning_rate, load_data, structure)
-        self.structure = structure
+        self.model = self._get_model(learning_rate, load_data, model_name)
+        self.model_name = model_name
 
         self.epochs = epochs
         self.batch_size = batch_size
 
     @classmethod
-    def _get_model(cls, learning_rate: float, load_data: bool, structure: str) -> keras.Model:
+    def _get_model(cls, learning_rate: float, load_data: bool, model_name: str) -> keras.Model:
 
         inputs = Input(shape=(c.COLUMNS, c.ROWS, 1))
         x = Conv2D(filters=64, kernel_size=(4, 4), padding='same')(inputs)
@@ -56,7 +56,7 @@ class NNet:
         )
         if load_data:
             try:
-                model.load_weights(f'{parent_dict}\\weights\\{structure}\\').expect_partial()
+                model.load_weights(f'{parent_dir}\\weights\\{model_name}\\').expect_partial()
             except ValueError:
                 print('No saved weights found')
         return model
@@ -83,7 +83,7 @@ class NNet:
         self.model.fit(x=x_train, y={'policy': y_train[0], 'value': y_train[1]},
                        epochs=self.epochs, batch_size=self.batch_size, shuffle=True)
         if save_data:
-            self.model.save_weights(f'{parent_dict}\\weights\\{self.structure}\\')
+            self.model.save_weights(f'{parent_dir}\\weights\\{self.model_name}\\')
 
     def prediction(self, state: np.ndarray, player: int = 1) -> np.array:
         state_copy = copy.deepcopy(state) * player

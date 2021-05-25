@@ -14,7 +14,7 @@ PASSWORD = 'password'
 DATABASE = 'connect4'
 
 """Neural Network"""
-DEFAULT_STRUCTURE = 'structure0'
+DEFAULT_STRUCTURE = 'model0'
 
 """Training"""
 DEFAULT_TRAINING_TABLE = 'training_data'
